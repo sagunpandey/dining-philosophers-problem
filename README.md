@@ -38,4 +38,4 @@ $ python dining_philosopher.py
 ```
 
 ## Acknowledgement
-I would like to thank [Dr. Lawrence J. Osborne](https://www.lamar.edu/arts-sciences/computer-science/people/faculty-members/lawrence_osborne.html) for assigning this project to me. It was because of his lectures and guidance that I was able to complete this assignment.
+I would like to thank [Dr. Lawrence J. Osborne](https://www.lamar.edu/arts-sciences/computer-science/people/faculty-members/lawrence_osborne.html) for assigning this project to me. It was because of his lectures and guidance that I was able to complete this assignment. I would also like to acknowledge my partner Shelby LeBlanc who collaborated with me on this project.

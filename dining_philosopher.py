@@ -41,23 +41,39 @@ class Fork(SocketServer, Child):
             try:
                 data = connection.recv(1024)
                 if data:
-                    request = pickle.loads(data)
+                    request = pickle.loads(data)  # request -> [philosopher_id, action]
+                    # If the request action is acquiring the fork
                     if request[1] == 1:
-                        if self.being_used:
+                        if self.being_used:  # If fork is dirty/being used
+                            # Send [fork_id, philosopher_id, action, success]
+                            # action  = 1 for acquiring fork
+                            # success = 0 for failure
                             connection.send(pickle.dumps([self.id, request[0], 1, 0]))
                             break
-                        else:
+                        else:  # If fork is clean/not being used
                             self.being_used = True
-                            self.being_used_by = request[0]
+                            self.being_used_by = request[0]  # Store the id of the philosopher who has the fork now
+                            # Send [fork_id, philosopher_id, action, success]
+                            # action  = 1 for acquiring fork
+                            # success = 1 for success
                             connection.send(pickle.dumps([self.id, self.being_used_by, 1, 1]))
+                    # If the request action is releasing the fork
                     elif request[1] == 0:
+                        # Fork has to be dirty/being used
+                        # Release request can only be made by the philosopher holding the fork
                         if self.being_used and self.being_used_by == request[0]:
                             last_user = self.being_used_by
                             self.being_used = False
                             self.being_used_by = None
+                            # Send [fork_id, philosopher_id, action, success]
+                            # action  = 0 for releasing fork
+                            # success = 1 for success
                             connection.send(pickle.dumps([self.id, last_user, 0, 1]))
                             break
                         else:
+                            # Send [fork_id, philosopher_id, action, success]
+                            # action  = 0 for releasing fork
+                            # success = 0 for failure
                             connection.send(pickle.dumps([self.id, request[0], 0, 0]))
                             break
             except:
@@ -75,33 +91,33 @@ class Philosopher(Child):
     def start(self):
         self.run = True
         while self.run:
-            # print("Philosopher " + str(self.id) + ": THINKING")
             self.report_status(pickle.dumps([self.id, 0]))  # IS THINKING
             time.sleep(random.randint(1, 3))
             self.dine()
 
     def stop(self):
-        print("Hello")
         self.run = False
 
     def dine(self):
         fork_l, fork_r = self.fork_left, self.fork_right
-        # print("Philosopher " + str(self.id) + ": WAITING")
         self.report_status(pickle.dumps([self.id, 1]))  # IS WAITING
         client = None
         client2 = None
         while self.run:
-            client = self.acquire_blocking(fork_l)
-            is_available = self.acquire_non_blocking(fork_r)
+            client = self.acquire_blocking(fork_l)  # MUST get the left fork
+            is_available = self.acquire_non_blocking(fork_r)  # TRY to get the right fork
+            # is_available = [acquired, client]
+            # acquired -> True/False
             client2 = is_available[1]
-            if not is_available[0]:
-                self.release_fork(client)
-                fork_l, fork_r = fork_r, fork_l
+            if not is_available[0]:  # If left fork not acquired
+                self.release_fork(client)  # Release the left fork
+                fork_l, fork_r = fork_r, fork_l  # Swap the forks, so that next time you acquire the right fork first
             else:
                 break
 
         if self.run:
             self.dining()
+            # Release both forks after done eating
             self.release_fork(client)
             self.release_fork(client2)
         else:
@@ -111,20 +127,23 @@ class Philosopher(Child):
                 client2.close()
 
     def dining(self):
-        # print("Philosopher " + str(self.id) + ": EATING")
         self.report_status(pickle.dumps([self.id, 2]))  # IS EATING
         time.sleep(random.randint(3, 6))
 
     def release_fork(self, client):
-        client.send(pickle.dumps([self.id, 0]))
+        client.send(pickle.dumps([self.id, 0]))  # Sends [id, 0] to server. 0 being command for releasing the fork
         data = client.receive()
         if data:
             response = pickle.loads(data)
+            # response -> [fork_id, philosopher_id, action, success]
+            # action   -> 1 = acquiring the fork, 0 = releasing the fork
+            # success  -> 1 = successful, 0 = failure
             if response[1] == self.id and response[2] == 0 and response[3] == 1:
                 client.close()
             else:
                 pass
 
+    # Blocks the execution until the client acquires the fork
     def acquire_blocking(self, fork):
         while self.run:
             try:
@@ -135,12 +154,16 @@ class Philosopher(Child):
                 data = client.receive()
                 if data:
                     response = pickle.loads(data)
+                    # response -> [fork_id, philosopher_id, action, success]
+                    # action   -> 1 = acquiring the fork, 0 = releasing the fork
+                    # success  -> 1 = successful, 0 = failure
                     if response[1] == self.id and response[2] == 1 and response[3] == 1:
                         return client
                 client.close()
             except:
                 pass
 
+    # Doesn't block the execution if client cannot acquire the fork
     def acquire_non_blocking(self, fork):
         client = SocketClient()
         client.connect(fork[0], fork[1])
@@ -148,6 +171,9 @@ class Philosopher(Child):
         data = client.receive()
         if data:
             response = pickle.loads(data)
+            # response -> [fork_id, philosopher_id, action, success]
+            # action   -> 1 = acquiring the fork, 0 = releasing the fork
+            # success  -> 1 = successful, 0 = failure
             if response[1] == self.id and response[2] == 1 and response[3] == 1:
                 return [True, client]
         client.close()
@@ -239,6 +265,7 @@ def dining_philosophers():
 
     num_of_philosophers = get_number_of_forks()  # Number of Forks = Number of Philosophers
 
+    # Create a Display Process
     display = multiprocessing.Process(target=display_process, args=(num_of_philosophers,))
     display.start()
 
@@ -257,7 +284,7 @@ def dining_philosophers():
         philosopher.start()
 
     time.sleep(90)
-    terminate()
+    terminate()  # Terminate all child processes
 
     # Wait for all child processes to end
     while multiprocessing.active_children():
